@@ -29,7 +29,7 @@ def smooth_and_scale(rts, intensities, scans_per_second, window_length, polyorde
 
     return rts, intensities
 
-def df_from_mzml(mzml_file:Path) -> pd.DataFrame:   
+def df_from_mzml(mzml_file:Path, scans_per_second:int=8, window_length:int=5, polyorder:int=3) -> pd.DataFrame:   
 
     namespace = '{http://psi.hupo.org/ms/mzml}'
 
@@ -100,9 +100,9 @@ def df_from_mzml(mzml_file:Path) -> pd.DataFrame:
                 rts, intensities = smooth_and_scale(
                     rts=rts,
                     intensities=intensities,
-                    scans_per_second=16,
-                    window_length=7,
-                    polyorder=3
+                    scans_per_second=scans_per_second,
+                    window_length=window_length,
+                    polyorder=polyorder
                 )
 
                 # make negative values 0
