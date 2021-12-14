@@ -130,3 +130,5 @@ dmypy.json
 
 
 mzML/*.mzML
+peaks_found.csv
+plots/*.png
