@@ -1,25 +1,39 @@
+from typing import Tuple
+from nptyping import NDArray
+
 import xml.etree.ElementTree as et
 
 import os
 import base64
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from scipy.signal import savgol_filter
 from scipy.interpolate import interp1d
 
-def smooth_and_scale(rts, intensities, scans_per_second, window_length, polyorder):
+def smooth_and_scale(rts:NDArray, intensities:NDArray, scans_per_second:int=8, window_length:int=5, polyorder:int=3) -> Tuple[NDArray,NDArray]:
+    """[summary]
 
-    scans_per_second = int(scans_per_second)
-    window_length = int(window_length)
-    polyorder = int(polyorder)
-    
-    rts = np.array(rts)
-    intensities = np.array(intensities)
+    Args:
+        rts (NDArray): Retention times
+        intensities (NDArray): Intensities
+        scans_per_second (int, optional): Number of scans per second to up/down scale to. Defaults to 8.
+        window_length (int, optional): Window length for scipy.signal.savgol_filter function. Defaults to 5.
+        polyorder (int, optional): Polyorder for scipy.signal.savgol_filter function. Defaults to 3.
 
+    Returns:
+        Tuple[NDArray,NDArray]: Both the new retention times and intensities are returned.
+    """
+
+    # prepare interpolate function based on input data
     interpolate_func = interp1d(rts,intensities,kind='linear')
+    
+    # determine new rt range
     rt_range = np.linspace(0,9999,int(scans_per_second * 9999)).round(3)
     rts = rt_range[(rt_range >= rts.min()) & (rt_range <= rts.max())]
+    
+    # apply up/down scaling and include smooting
     intensities = savgol_filter(
         interpolate_func(rts), 
         window_length=window_length, 
@@ -27,9 +41,21 @@ def smooth_and_scale(rts, intensities, scans_per_second, window_length, polyorde
         mode='interp'
     )                
 
+    # return the new rt and intensities arrays as Tuple
     return rts, intensities
 
-def df_from_mzml(mzml_file:Path, scans_per_second:int=8, window_length:int=5, polyorder:int=3) -> pd.DataFrame:   
+def df_from_mzml(mzml_file:Path, scans_per_second:int=8, window_length:int=5, polyorder:int=3) -> pd.DataFrame:
+    """Converts and mzML file to a Pandas DataFrame
+
+    Args:
+        mzml_file (Path): location of mzML file to convert
+        scans_per_second (int, optional): Number of scans per second to up/down scale to. Defaults to 8.
+        window_length (int, optional): Window length for scipy.signal.savgol_filter function. Defaults to 5.
+        polyorder (int, optional): Polyorder for scipy.signal.savgol_filter function. Defaults to 3.
+
+    Returns:
+        pd.DataFrame: A data frame with transition, rt, intensity, file, and a sample column
+    """
 
     namespace = '{http://psi.hupo.org/ms/mzml}'
 
@@ -133,63 +159,3 @@ def df_from_mzml(mzml_file:Path, scans_per_second:int=8, window_length:int=5, po
         print(ex)
 
     return data_table
-from scipy.ndimage import shift    
-
-def phase_align(reference, target, roi=None, res=10):
-    '''
-    Cross-correlate data within region of interest at a precision of 1./res
-    if data is cross-correlated at native resolution (i.e. res=1) this function
-    can only achieve integer precision 
-
-    Args:
-        reference (1d array/list): signal that won't be shifted
-        target (1d array/list): signal to be shifted to reference
-        roi (tuple): region of interest to compute chi-squared
-        res (int): factor to increase resolution of data via linear interpolation
-    
-    Returns:
-        shift (float): offset between target and reference signal 
-    '''
-    # convert to int to avoid indexing issues
-    if roi==None: roi = [0,len(reference)-1]
-
-    ROI = slice(int(roi[0]), int(roi[1]), 1)
-
-    # interpolate data onto a higher resolution grid 
-    x,r1 = highres(reference[ROI],kind='cubic',res=res)
-    x,r2 = highres(target[ROI],kind='cubic',res=res)
-
-    # subtract off mean 
-    r1 -= r1.mean()
-    r1 -= r2.mean()
-
-    # compute the phase-only correlation function
-    product = np.fft.fft(r1) * np.fft.fft(r2).conj()
-    cc = np.fft.fftshift(np.fft.ifft(product))
-
-    # manipulate the output from np.fft
-    l = reference[ROI].shape[0]
-    shifts = np.linspace(-0.5*l,0.5*l,l*res)
-
-    # plt.plot(shifts,cc,'k-'); plt.show()
-    return shifts[np.argmax(cc.real)]
-
-
-def highres(y,kind='cubic',res=1):
-    '''
-    Interpolate data onto a higher resolution grid by a factor of *res*
-
-    Args:
-        y (1d array/list): signal to be interpolated
-        kind (str): order of interpolation (see docs for scipy.interpolate.interp1d)
-        res (int): factor to increase resolution of data via linear interpolation
-    
-    Returns:
-        shift (float): offset between target and reference signal 
-    '''
-    y = np.array(y)
-    x = np.arange(0, y.shape[0])
-    f = interp1d(x, y,kind='cubic')
-    xnew = np.linspace(0, x.shape[0]-1, x.shape[0]*res)
-    ynew = f(xnew)
-    return xnew,ynew
