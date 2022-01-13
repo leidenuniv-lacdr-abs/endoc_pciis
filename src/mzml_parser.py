@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import List, Tuple
 from nptyping import NDArray
 from typing import Dict
 
@@ -12,12 +12,15 @@ import pandas as pd
 from scipy.signal import savgol_filter
 from scipy.interpolate import interp1d
 
-def smooth_and_scale(data: Dict, scans_per_second:int=8, window_length:int=5, polyorder:int=3) -> Tuple[NDArray,NDArray]:
+# global variables (local)
+_NAMESPACE = '{http://psi.hupo.org/ms/mzml}'
+
+def smooth_and_scale(rts:List=[], intensities:List=[],scans_per_second:int=8, window_length:int=5, polyorder:int=3) -> Tuple[NDArray,NDArray]:
     """[summary]
 
     Args:
-        rts (NDArray): Retention times
-        intensities (NDArray): Intensities
+        rts (List): Retention times
+        intensities (List): Intensities
         scans_per_second (int, optional): Number of scans per second to up/down scale to. Defaults to 8.
         window_length (int, optional): Window length for scipy.signal.savgol_filter function. Defaults to 5.
         polyorder (int, optional): Polyorder for scipy.signal.savgol_filter function. Defaults to 3.
@@ -26,8 +29,8 @@ def smooth_and_scale(data: Dict, scans_per_second:int=8, window_length:int=5, po
         Tuple[NDArray,NDArray]: Both the new retention times and intensities are returned.
     """
 
-    rts = np.array([t*60 for t in data["time"]])
-    intensities = np.array(data["intensity"])
+    rts = np.array([t*60 for t in rts])
+    intensities = np.array(intensities)
 
     # prepare interpolate function based on input data
     interpolate_func = interp1d(rts,intensities,kind='linear')
@@ -36,7 +39,7 @@ def smooth_and_scale(data: Dict, scans_per_second:int=8, window_length:int=5, po
     rt_range = np.linspace(0,9999,int(scans_per_second * 9999)).round(3)
     rts = rt_range[(rt_range >= rts.min()) & (rt_range <= rts.max())]
     
-    # apply up/down scaling and include smooting
+    # apply up/down scaling and include smoothing
     intensities = savgol_filter(
         interpolate_func(rts), 
         window_length=window_length, 
@@ -60,108 +63,128 @@ def df_from_mzml(mzml_file:Path, scans_per_second:int=8, window_length:int=5, po
 
     Returns:
         pd.DataFrame: A data frame with transition, rt, intensity, file, and a sample column
-    """
+    """    
 
-    namespace = '{http://psi.hupo.org/ms/mzml}'
-
-    # prepare dicts for storing mzml data (in a matrix-like format)
-    data_table = {"transition": [], "rt": [], "intensity": []}
+    df = pd.DataFrame()
 
     try:
+        chrom_dfs = []
 
         tree = et.parse(mzml_file)
         xml_root = tree.getroot()
 
-        for chromatogram in xml_root.iter(f"{namespace}chromatogram"):
-            data_table = parse_chromatogram(chromatogram, data_table, namespace, scans_per_second, 
-                                window_length, polyorder)
+        for chromatogram in xml_root.iter(f"{_NAMESPACE}chromatogram"):
+            
+            # retrieve the transition, rt, and intensity information
+            chrom_dict = parse_chromatogram(chromatogram)
 
-        data_table = format_datatable(data_table, mzml_file)
+            # scale and smooth when the chromatogram contains actual data
+            if chrom_dict.keys():
+                chrom_dict['rts'], chrom_dict['intensities'] = smooth_and_scale( 
+                    rts=chrom_dict['rts'],
+                    intensities=chrom_dict['intensities'],
+                    scans_per_second = scans_per_second,
+                    window_length = window_length,
+                    polyorder = polyorder
+                )
+
+                # convert it to a dataframe, and append it to the list
+                chrom_dfs.append(chromatogram_as_df(chrom_dict))
+                
+        # concat the chromatogram data frames
+        df = pd.concat(chrom_dfs, ignore_index=True)         
+                
+        # include file
+        df['file'] = str(mzml_file)
+
+        # include sample
+        df['sample'] = df['file'].apply(lambda x: x.split(os.path.sep)[-1].replace(".mzML", ""))
 
     except Exception as ex:
-        print(ex)
+        print(ex)      
 
-    return data_table
+    return df
 
 
-def parse_chromatogram(chromatogram, data_table, namespace, scans_per_second, window_length, polyorder):
-    pmz = False
-    pcmz = False
-    polarity = False
-    data = {"time": [], "intensity": []}
+def parse_chromatogram(chromatogram):
+    """[summary]
 
-    if "SRM" in f"{chromatogram.attrib['id']}":
-        pcmz = f"{chromatogram.attrib['id']}".split("Q1=")[1].split(" ")[0]
-        pmz = f"{chromatogram.attrib['id']}".split("Q3=")[1].split(" ")[0]
+    Args:
+        chromatogram ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
+
+    if not "SRM" in f"{chromatogram.attrib['id']}":            
+        return {}
+
+    precursor_mz = f"{chromatogram.attrib['id']}".split("Q1=")[1].split(" ")[0]
+    product_mz = f"{chromatogram.attrib['id']}".split("Q3=")[1].split(" ")[0]
 
     for node in chromatogram.iter():
-        data, polarity = parse_node(node, namespace, data, polarity)
         
-    if all([polarity, pcmz, pmz]):
-        # scale and smooth
-        rts, intensities = smooth_and_scale(
-            data = data, scans_per_second = scans_per_second,
-            window_length = window_length, polyorder = polyorder
-        )
+        # parameter node
+        if node.tag == f'{_NAMESPACE}cvParam':
+            if node.attrib["name"] == 'negative scan':                            
+                polarity = 'neg'
+            elif node.attrib["name"] == 'positive scan':
+                polarity = 'pos'                      
 
-        data_table['transition'].append(np.full(len(rts), f"{pcmz}_{pmz}_{polarity}"))
-        data_table['rt'].append(rts)
-        data_table['intensity'].append(intensities) 
-        
-    return data_table                   
-
-def parse_node(node, namespace, data, polarity):
-    # find out if positive or negative
-    if node.tag == f'{namespace}cvParam':
-        if node.attrib["name"] == 'negative scan':                            
-            polarity = 'neg'
-        elif node.attrib["name"] == 'positive scan':
-            polarity = 'pos'                      
-
-    # get rt and ints                        
-    elif node.tag == f'{namespace}binaryDataArrayList':                            
-        for binaryDataArray in node.iter(f'{namespace}binaryDataArray'):                                
-            data = parse_binary(binaryDataArray, data, namespace)
-
-    return data, polarity
-
-
-def format_datatable(data_table, mzml_file):
-     # (re)shape
-    data_table['transition'] = np.concatenate(tuple(data_table['transition']))
-    data_table['rt'] = np.concatenate(tuple(data_table['rt']))
-    data_table['intensity'] = np.concatenate(tuple(data_table['intensity']))
-
-    # create dataframe
-    data_table = pd.DataFrame(data_table)     
-    data_table['transition'] = data_table['transition'].astype('category')
-    data_table['rt'] = data_table['rt'].astype(float).round(decimals=5)
-    data_table['intensity'] = data_table['intensity'].astype(int)
-
-    # include file
-    data_table['file'] = str(mzml_file)
-
-    # include sample
-    data_table['sample'] = data_table['file'].apply(lambda x: x.split(os.path.sep)[-1].replace(".mzML", ""))
-    return data_table
-
-
-def parse_binary(binaryDataArray, data, namespace):
-    data_type = False
-    data_values = []
-    for data_node in binaryDataArray.iter():
-        if data_node.tag == f'{namespace}cvParam':                             
-            if data_node.attrib["name"] in ['time array', 'intensity array']:
-                data_type = data_node.attrib["name"].replace(" array", "")
-        elif data_node.tag == f'{namespace}binary':
-            try:
-                decoded_node_data = base64.b64decode(data_node.text)
-                data_values = np.frombuffer(decoded_node_data, np.float64)                                        
-            except Exception as ex:
-                print(ex)
-                pass
+        # signal node                        
+        elif node.tag == f'{_NAMESPACE}binaryDataArrayList':                                                                            
+            rts, intensities = get_signal(node)
     
-    if data_type and len(data_values) > 0:
-        data[data_type] = data_values
+    # construct transition
+    transition = f"{precursor_mz}_{product_mz}_{polarity}"
+        
+    return {'transition':transition, 'rts':rts, 'intensities':intensities}
 
-    return data
+def chromatogram_as_df(chrom_dict:dict):
+    """[summary]
+
+    Args:
+        chrom_dict (dict): [description]
+
+    Returns:
+        [type]: [description]
+    """
+
+    df = pd.DataFrame({
+            'transition':np.full(len(chrom_dict['rts']), chrom_dict['transition']),
+            'rt':chrom_dict['rts'], 
+            'intensity':chrom_dict['intensities']
+        }
+    )     
+
+    df['transition'] = df['transition'].astype('category')
+    df['rt'] = df['rt'].astype(float).round(decimals=5)
+    df['intensity'] = df['intensity'].astype(int)    
+    
+    return df
+
+def get_signal(node):
+    """[summary]
+
+    Args:
+        node ([type]): [description]
+
+    Returns:
+        [type]: [description]
+    """
+
+    signal_data = {}
+    for binaryDataArray in node.iter(f'{_NAMESPACE}binaryDataArray'):
+        for data_node in binaryDataArray.iter():
+            if data_node.tag == f'{_NAMESPACE}cvParam':                             
+                if data_node.attrib["name"] in ['time array', 'intensity array']:
+                    data_type = data_node.attrib["name"].replace(" array", "")
+            elif data_node.tag == f'{_NAMESPACE}binary':
+                try:
+                    decoded_node_data = base64.b64decode(data_node.text)
+                    signal_data[data_type] = np.frombuffer(decoded_node_data, np.float64)                                        
+                except Exception as ex:
+                    print(ex)
+                    pass
+    
+    return signal_data['time'], signal_data['intensity']
