@@ -130,5 +130,7 @@ dmypy.json
 
 
 mzML/*.mzML
+mzML_backup/*.mzML
 peaks_found.csv
 plots/*.png
+experiments/example/mzML/
