@@ -1,19 +1,18 @@
-altair==5.1.2
-altair-data-server==0.4.1
-altair-saver==0.5.0
-altair-viewer==0.4.0
-detecta==0.0.5
-jupyter==1.0.0
-matplotlib-inline==0.1.3
-pandas==1.3.5
-scikit-learn==1.0.2
-scipy==1.7.3
-sklearn==0.0
-statsmodels==0.13.1
-ipykernel==6.26.0
-ipympl==0.9.3
-ipython==8.17.2
-ipython-genutils==0.2.0
-ipywidgets==8.1.1
-nptyping==2.5.0
-altair-saver==0.5.0
+altair==5.1.2 # BSD 3-clause "New" or "Revised" license
+altair-data-server==0.4.1 # BSD 3-clause "New" or "Revised" license
+altair-saver==0.5.0 # BSD 3-clause "New" or "Revised" license
+altair-viewer==0.4.0 # BSD 3-clause "New" or "Revised" license
+detecta==0.0.5 # MIT
+jupyter==1.0.0 # BSD 3-clause "New" or "Revised" license
+matplotlib-inline==0.1.3 # BSD 3-clause "New" or "Revised" license
+pandas==1.3.5 # BSD 3-clause "New" or "Revised" license
+scikit-learn==1.0.2 # BSD 3-clause "New" or "Revised" license
+scipy==1.7.3 # BSD 3-clause "New" or "Revised" license
+sklearn==0.0 # BSD 3-clause "New" or "Revised" license
+statsmodels==0.13.1 # BSD 3-clause "New" or "Revised" license
+ipykernel==6.26.0 # BSD 3-clause "New" or "Revised" license
+ipympl==0.9.3 # BSD 3-clause "New" or "Revised" license
+ipython==8.17.2 # BSD 3-clause "New" or "Revised" license
+ipython-genutils==0.2.0 # BSD 3-clause "New" or "Revised" license
+ipywidgets==8.1.1 # BSD 3-clause "New" or "Revised" license
+nptyping==2.5.0 # MIT
