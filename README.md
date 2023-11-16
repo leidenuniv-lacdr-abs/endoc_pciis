@@ -1,7 +1,7 @@
 # Application of post-column infused standard (PCIS) correction of matrix effect
 The code and data provided here will allow anyone to reproduce analyses and results described in:
 
-> Anne-Charlotte Dubbelman, Bo van Wieringen, Lesley Roman Arias, Michael van Vliet, Amy C. Harms, Thomas Hankemeier. Strategies for using post-column infusion of standards to correct for matrix effect in LC-MS-based quantitative metabolomics. 2023
+> Anne-Charlotte Dubbelman, Bo van Wieringen, Lesley Roman Arias, Michael van Vliet, Roel Vermeulen, Amy C. Harms, Thomas Hankemeier. Strategies for using post-column infusion of standards to correct for matrix effect in LC-MS-based quantitative metabolomics. 2023
 
 Doi will be added when available.  
 
