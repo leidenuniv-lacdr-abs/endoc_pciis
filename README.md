@@ -3,7 +3,8 @@ The code and data provided here will allow anyone to reproduce analyses and resu
 
 > Anne-Charlotte Dubbelman, Bo van Wieringen, Lesley Roman Arias, Michael van Vliet, Roel Vermeulen, Amy C. Harms, Thomas Hankemeier. Strategies for using post-column infusion of standards to correct for matrix effect in LC-MS-based quantitative metabolomics. 2023
 
-Doi will be added when available.  
+[Strategies for Using Postcolumn Infusion of Standards to Correct for Matrix Effect in LC-MS-Based Quantitative Metabolomics](https://pubs.acs.org/doi/10.1021/jasms.4c00408)
+[https://doi.org/10.1021/jasms.4c00408](https://pubs.acs.org/doi/10.1021/jasms.4c00408)
 
 ## Run in the cloud
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/leidenuniv-lacdr-abs/endoc_pciis/HEAD)
